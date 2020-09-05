@@ -119,6 +119,10 @@
           }
         }
       }
-    }},
-  "defaultProject": "watch-model"
+    }
+  },
+  "defaultProject": "watch-model",
+  "cli": {
+    "analytics": "d45a834e-cece-46d0-a688-51e8404247b9"
+  }
 }
