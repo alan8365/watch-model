@@ -1,1 +1,26 @@
 /* You can add global styles to this file, and also import other style files */
+body {
+  background: black;
+  color: white;
+}
+
+#main{
+  position: relative;
+}
+
+#video {
+  -o-transform: scaleX(-1);
+  -webkit-transform: scaleX(-1);
+  transform: scaleX(-1);
+}
+
+#overlay {
+  position: absolute;
+  /*top: 0px;*/
+  /*left: 0px;*/
+  -o-transform: scaleX(-1);
+  -webkit-transform: scaleX(-1);
+  transform: scaleX(-1);
+  -ms-filter: fliph; /*IE*/
+  filter: fliph; /*IE*/
+}

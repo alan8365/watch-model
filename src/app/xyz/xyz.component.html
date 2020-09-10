@@ -1,1 +1,20 @@
-<p>xyz works!</p>
+<h1>xyz works!</h1>
+
+<div id="info" style='display:none'>
+</div>
+
+<div id="loading" style='display:flex'>
+  <div class="spinner-text">
+    Loading PoseNet model...
+  </div>
+  <div class="sk-spinner sk-spinner-pulse"></div>
+</div>
+
+<div id='main'>
+  <video id="video" playsinline style="position: absolute">
+  </video>
+  <canvas id="overlay" width="600" height="500" style="position: absolute">
+  </canvas>
+  <canvas id="output" style="position: absolute">
+  </canvas>
+</div>

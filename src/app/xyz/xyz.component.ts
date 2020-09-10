@@ -1,4 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import {Component, OnInit} from '@angular/core';
+
+import {bindPage} from './camera';
+import {startVideo} from './clm';
 
 @Component({
   selector: 'app-xyz',
@@ -8,9 +11,14 @@ import { Component, OnInit } from '@angular/core';
 
 export class XyzComponent implements OnInit {
 
-  constructor() { }
-
-  ngOnInit(): void {
+  constructor() {
   }
 
+  async ngOnInit(): Promise<void> {
+    // let a = await loadVideo();
+    // console.log(a);
+    // await test(a);
+    // await bindPage();
+    await startVideo();
+  }
 }
