@@ -1,7 +1,7 @@
 import {Component, OnInit} from '@angular/core';
 
-import {bindPage} from './camera';
-import {startVideo} from './clm';
+import {bindPage} from './combine-model';
+import {startVideo} from './clm-model';
 
 @Component({
   selector: 'app-xyz',
@@ -18,7 +18,21 @@ export class XyzComponent implements OnInit {
     // let a = await loadVideo();
     // console.log(a);
     // await test(a);
-    // await bindPage();
-    await startVideo();
+    // TODO make render quickly
+    // await bindPage("video", "output");
+    await startVideo("video", "overlay");
+
+
+
+    // fps stats
+    // stats = new Stats();
+    // stats.domElement.style.position = 'absolute';
+    // stats.domElement.style.top = '0px';
+    // document.getElementById('container').appendChild(stats.domElement);
+    //
+    // // update stats on every iteration
+    // document.addEventListener('clmtrackrIteration', function (event) {
+    //   stats.update();
+    // }, false);
   }
 }

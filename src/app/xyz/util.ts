@@ -42,9 +42,11 @@ const lineWidth = 2;
 
 /**
  * Toggles between the loading UI and the main canvas UI.
+ * @param showLoadingUI
+ * @param loadingDivId
+ * @param mainDivId
  */
-export function toggleLoadingUI(
-  showLoadingUI, loadingDivId = 'loading', mainDivId = 'main') {
+export function toggleLoadingUI(showLoadingUI: boolean, loadingDivId: string = 'loading', mainDivId: string = 'main') {
   if (showLoadingUI) {
     document.getElementById(loadingDivId).style.display = 'block';
     document.getElementById(mainDivId).style.display = 'none';
@@ -136,7 +138,7 @@ export async function renderToCanvas(a, ctx) {
     const j = i * 4;
     const k = i * 3;
 
-    imageData.data[j + 0] = data[k + 0];
+    imageData.data[j] = data[k];
     imageData.data[j + 1] = data[k + 1];
     imageData.data[j + 2] = data[k + 2];
     imageData.data[j + 3] = 255;

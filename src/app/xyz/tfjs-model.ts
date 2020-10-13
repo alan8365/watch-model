@@ -22,13 +22,13 @@ const stats = new Stats();
 /**
  * Loads a the camera to be used in the demo
  */
-export async function setupCamera() {
+export async function setupCamera(videoElementId) {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     throw new Error(
       'Browser API navigator.mediaDevices.getUserMedia not available');
   }
 
-  const video = document.getElementById('video');
+  const video = document.getElementById(videoElementId);
 
   if (isVideo(video)) {
     video.width = videoWidth;
@@ -53,8 +53,8 @@ export async function setupCamera() {
   return video;
 }
 
-export async function loadVideo() {
-  const video = await setupCamera();
+export async function loadVideo(videoElementId) {
+  const video = await setupCamera(videoElementId);
 
   if (isVideo(video)) {
     await video.play();
@@ -290,174 +290,14 @@ function setupGui(cameras, net) {
 }
 
 /**
- * Feeds an image to posenet to estimate poses - this is where the magic
- * happens. This function loops with a requestAnimationFrame method.
+ *
+ * @param videoElementId
+ * @param canvasElementIdTFJS
+ * @param canvasElementIdCLM
  */
-function detectPoseInRealTime(video, net) {
-  const canvas = document.getElementById('output');
-
-  if (isCanvas(canvas)) {
-    const ctx = canvas.getContext('2d');
-
-    // since images are being fed from a webcam, we want to feed in the
-    // original image and then just flip the keypoints' x coordinates. If instead
-    // we flip the image, then correcting left-right keypoint pairs requires a
-    // permutation on all the keypoints.
-    const flipPoseHorizontal = true;
-
-    canvas.width = videoWidth;
-    canvas.height = videoHeight;
-
-    async function poseDetectionFrame() {
-      if (guiState.changeToArchitecture) {
-        // Important to purge variables and free up GPU memory
-        guiState.net.dispose();
-        toggleLoadingUI(true);
-        guiState.net = await posenet.load({
-          architecture: guiState.changeToArchitecture,
-          outputStride: guiState.outputStride,
-          inputResolution: guiState.inputResolution,
-          multiplier: guiState.multiplier,
-        });
-        toggleLoadingUI(false);
-        guiState.architecture = guiState.changeToArchitecture;
-        guiState.changeToArchitecture = null;
-      }
-
-      if (guiState.changeToMultiplier) {
-        guiState.net.dispose();
-        toggleLoadingUI(true);
-        guiState.net = await posenet.load({
-          architecture: guiState.architecture,
-          outputStride: guiState.outputStride,
-          inputResolution: guiState.inputResolution,
-          multiplier: guiState.changeToMultiplier, // FIXME delete a + symbol
-          quantBytes: guiState.quantBytes
-        });
-        toggleLoadingUI(false);
-        guiState.multiplier = +guiState.changeToMultiplier;
-        guiState.changeToMultiplier = null;
-      }
-
-      if (guiState.changeToOutputStride) {
-        // Important to purge variables and free up GPU memory
-        guiState.net.dispose();
-        toggleLoadingUI(true);
-        guiState.net = await posenet.load({
-          architecture: guiState.architecture,
-          outputStride: guiState.changeToOutputStride, // FIXME delete a + symbol
-          inputResolution: guiState.inputResolution,
-          multiplier: guiState.multiplier,
-          quantBytes: guiState.quantBytes
-        });
-        toggleLoadingUI(false);
-        guiState.outputStride = +guiState.changeToOutputStride;
-        guiState.changeToOutputStride = null;
-      }
-
-      if (guiState.changeToInputResolution) {
-        // Important to purge variables and free up GPU memory
-        guiState.net.dispose();
-        toggleLoadingUI(true);
-        guiState.net = await posenet.load({
-          architecture: guiState.architecture,
-          outputStride: guiState.outputStride,
-          inputResolution: +guiState.changeToInputResolution,
-          multiplier: guiState.multiplier,
-          quantBytes: guiState.quantBytes
-        });
-        toggleLoadingUI(false);
-        guiState.inputResolution = +guiState.changeToInputResolution;
-        guiState.changeToInputResolution = null;
-      }
-
-      if (guiState.changeToQuantBytes) {
-        // Important to purge variables and free up GPU memory
-        guiState.net.dispose();
-        toggleLoadingUI(true);
-        guiState.net = await posenet.load({
-          architecture: guiState.architecture,
-          outputStride: guiState.outputStride,
-          inputResolution: guiState.inputResolution,
-          multiplier: guiState.multiplier,
-          quantBytes: guiState.changeToQuantBytes
-        });
-        toggleLoadingUI(false);
-        guiState.quantBytes = guiState.changeToQuantBytes;
-        guiState.changeToQuantBytes = null;
-      }
-
-      // Begin monitoring code for frames per second
-      stats.begin();
-
-      let poses = [];
-      let minPoseConfidence;
-      let minPartConfidence;
-      switch (guiState.algorithm) {
-        case 'single-pose':
-          const pose = await guiState.net.estimatePoses(video, {
-            flipHorizontal: flipPoseHorizontal,
-            decodingMethod: 'single-person'
-          });
-          poses = poses.concat(pose);
-          minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
-          minPartConfidence = +guiState.singlePoseDetection.minPartConfidence;
-          break;
-        case 'multi-pose':
-          let all_poses = await guiState.net.estimatePoses(video, {
-            flipHorizontal: flipPoseHorizontal,
-            decodingMethod: 'multi-person',
-            maxDetections: guiState.multiPoseDetection.maxPoseDetections,
-            scoreThreshold: guiState.multiPoseDetection.minPartConfidence,
-            nmsRadius: guiState.multiPoseDetection.nmsRadius
-          });
-
-          poses = poses.concat(all_poses);
-          minPoseConfidence = +guiState.multiPoseDetection.minPoseConfidence;
-          minPartConfidence = +guiState.multiPoseDetection.minPartConfidence;
-          break;
-      }
-
-      ctx.clearRect(0, 0, videoWidth, videoHeight);
-
-      // if (guiState.output.showVideo) {
-      //   ctx.save();
-      //   ctx.scale(-1, 1);
-      //   ctx.translate(-videoWidth, 0);
-      //   ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
-      //   ctx.restore();
-      // }
-
-      // For each pose (i.e. person) detected in an image, loop through the poses
-      // and draw the resulting skeleton and keypoints if over certain confidence
-      // scores
-      poses.forEach(({score, keypoints}) => {
-        if (score >= minPoseConfidence) {
-          if (guiState.output.showPoints) {
-            drawKeypoints(keypoints, minPartConfidence, ctx);
-          }
-          if (guiState.output.showBoundingBox) {
-            drawBoundingBox(keypoints, ctx);
-          }
-        }
-      });
-
-      // End monitoring code for frames per second
-      stats.end();
-
-      requestAnimationFrame(poseDetectionFrame);
-    }
-
-    poseDetectionFrame();
-  }
-}
-
-/**
- * Kicks off the demo by loading the posenet model, finding and loading
- * available camera devices, and setting off the detectPoseInRealTime function.
- */
-export async function bindPage() {
+export async function bindPage(videoElementId: string, canvasElementIdTFJS: string, canvasElementIdCLM: string) {
   toggleLoadingUI(true);
+
   const net = await posenet.load({
     architecture: guiState.input.architecture,
     outputStride: guiState.input.outputStride,
@@ -465,13 +305,17 @@ export async function bindPage() {
     multiplier: guiState.input.multiplier,
     quantBytes: guiState.input.quantBytes
   });
+
   toggleLoadingUI(false);
 
   let video;
+  let canvasTFJS = document.getElementById(canvasElementIdTFJS);
+  let canvasCLM = document.getElementById(canvasElementIdCLM);
 
   try {
-    video = await loadVideo();
+    video = await loadVideo(videoElementId);
   } catch (e) {
+    // FIXME general
     let info = document.getElementById('info');
     info.textContent = 'this browser does not support video capture,' +
       'or this device does not have a camera';
@@ -480,17 +324,22 @@ export async function bindPage() {
   }
 
   guiState.net = net;
-  detect(video);
+  detect(video, canvasTFJS, canvasCLM);
 }
 
-export function detect(video) {
-  const canvas = document.getElementById('output');
+/**
+ * detect two model.
+ * @param video
+ * @param canvasTFJS
+ * @param canvasCLM
+ */
+export function detect(video, canvasTFJS, canvasCLM) {
+  if (isCanvas(canvasTFJS) && isCanvas(canvasCLM)) {
+    const ctxTFJS = canvasTFJS.getContext('2d');
+    const ctxCLM = canvasTFJS.getContext('2d');
 
-  if (isCanvas(canvas)) {
-    const ctx = canvas.getContext('2d');
-
-    canvas.width = videoWidth;
-    canvas.height = videoHeight;
+    canvasTFJS.width = videoWidth;
+    canvasTFJS.height = videoHeight;
 
     // since images are being fed from a webcam, we want to feed in the
     // original image and then just flip the keypoints' x coordinates. If instead
@@ -510,21 +359,22 @@ export function detect(video) {
       let minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
       let minPartConfidence = +guiState.singlePoseDetection.minPartConfidence;
 
-      ctx.clearRect(0, 0, videoWidth, videoHeight);
+      ctxTFJS.clearRect(0, 0, videoWidth, videoHeight);
 
       if (guiState.output.showVideo) {
-        ctx.save();
-        ctx.scale(-1, 1);
-        ctx.translate(-videoWidth, 0);
+        ctxTFJS.save();
+        ctxTFJS.scale(-1, 1);
+        ctxTFJS.translate(-videoWidth, 0);
         // ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
-        ctx.restore();
+        ctxTFJS.restore();
       }
 
       pose.forEach(({score, keypoints}) => {
         if (score >= minPoseConfidence) {
           // TODO draw position here
-          drawKeypoints(keypoints, minPartConfidence, ctx);
+          drawKeypoints(keypoints, minPartConfidence, ctxTFJS);
           // TODO use position info here
+          parsePosition(keypoints)
         }
       });
 
@@ -538,22 +388,34 @@ export function detect(video) {
   }
 }
 
-
+/**
+ * Check obj is HTMLVideoElement.
+ * @param obj
+ */
 export function isVideo(obj: HTMLVideoElement | HTMLElement): obj is HTMLVideoElement {
   return obj.tagName === 'VIDEO';
 }
 
+/**
+ * Check obj is HTMLCanvasElement.
+ * @param obj
+ */
 export function isCanvas(obj: HTMLCanvasElement | HTMLElement): obj is HTMLCanvasElement {
   return obj.tagName === 'CANVAS';
 }
 
-
+/**
+ * Parse position data
+ * @param positions
+ */
 function parsePosition(positions) {
-  return {
+  positions = {
     'nose': positions[0],
     'leftEye': positions[1],
     'rightEye': positions[2],
     'leftEar': positions[3],
     'rightEar': positions[4],
   };
+
+  // console.log(positions);
 }
