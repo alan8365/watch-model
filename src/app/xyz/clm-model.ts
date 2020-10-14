@@ -49,18 +49,18 @@ function drawLoop() {
 /**
  * Provides requestAnimationFrame in a cross browser way.
  */
-let requestAnimFrame = (function() {
+let requestAnimFrame = (function () {
   return window.requestAnimationFrame ||
     window.webkitRequestAnimationFrame ||
-    function(/* function FrameRequestCallback */ callback) {
-      return window.setTimeout(callback, 1000/60);
+    function (/* function FrameRequestCallback */ callback) {
+      return window.setTimeout(callback, 1000 / 60);
     };
 })();
 
 /**
  * Provides cancelRequestAnimationFrame in a cross browser way.
  */
-let cancelRequestAnimFrame = (function() {
+let cancelRequestAnimFrame = (function () {
   return window.cancelAnimationFrame ||
     window.clearTimeout;
 })();

@@ -9,6 +9,7 @@ import {
 import {drawBoundingBox, drawKeypoints, toggleLoadingUI} from "./util";
 import Stats from 'stats.js';
 import * as posenet from "@tensorflow-models/posenet";
+import clm from 'clmtrackr';
 
 // Setup start
 
@@ -70,6 +71,15 @@ const guiState = {
   changeToArchitecture: undefined
 };
 
+
+let trackingStarted = false;
+let ctrack = new clm.tracker({
+  faceDetection: {
+    useWebWorkers: false,
+  },
+});
+ctrack.init();
+
 /**
  * Loads a the camera to be used in the demo
  * @param videoElementId
@@ -126,7 +136,7 @@ export async function loadVideo(videoElementId) {
  * @param videoElementId
  * @param canvasElementId
  */
-export async function bindPage(videoElementId: string, canvasElementId: string) {
+export async function bindPage(videoElementId: string, canvasElementIdTFJS: string, canvasElementIdCLM: string) {
   toggleLoadingUI(true);
 
   const net = await posenet.load({
@@ -140,7 +150,8 @@ export async function bindPage(videoElementId: string, canvasElementId: string) 
   toggleLoadingUI(false);
 
   let video;
-  let canvas = document.getElementById(canvasElementId);
+  let canvasTFJS = document.getElementById(canvasElementIdTFJS);
+  let canvasCLM = document.getElementById(canvasElementIdCLM);
 
   try {
     video = await loadVideo(videoElementId);
@@ -154,20 +165,25 @@ export async function bindPage(videoElementId: string, canvasElementId: string) 
   }
 
   guiState.net = net;
-  detect(video, canvas);
+  detect(video, canvasTFJS, canvasCLM);
 }
 
 /**
  *
  * @param video
- * @param canvas
+ * @param canvasTFJS
+ * @param canvasCLM
  */
-export function detect(video, canvas) {
-  if (isCanvas(canvas)) {
-    const ctx = canvas.getContext('2d');
+export function detect(video, canvasTFJS, canvasCLM) {
+  if (isCanvas(canvasTFJS) && isCanvas(canvasCLM)) {
+    const ctxTFJS = canvasTFJS.getContext('2d');
+    const ctxCLM = canvasCLM.getContext('2d');
 
-    canvas.width = videoWidth;
-    canvas.height = videoHeight;
+    canvasTFJS.width = videoWidth;
+    canvasTFJS.height = videoHeight;
+
+    canvasCLM.width = videoWidth;
+    canvasCLM.height = videoHeight;
 
     // since images are being fed from a webcam, we want to feed in the
     // original image and then just flip the keypoints' x coordinates. If instead
@@ -175,10 +191,14 @@ export function detect(video, canvas) {
     // permutation on all the keypoints.
     const flipPoseHorizontal = true;
 
+    ctrack.start(video)
+
     async function poseDetectionFrame() {
       // Begin monitoring code for frames per second
       stats.begin();
 
+      // TFJS Start
+      // FIXME fps is stuck this line
       const pose = await guiState.net.estimatePoses(video, {
         flipHorizontal: flipPoseHorizontal,
         decodingMethod: 'single-person'
@@ -187,24 +207,34 @@ export function detect(video, canvas) {
       let minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
       let minPartConfidence = +guiState.singlePoseDetection.minPartConfidence;
 
-      ctx.clearRect(0, 0, videoWidth, videoHeight);
-
-      if (guiState.output.showVideo) {
-        ctx.save();
-        ctx.scale(-1, 1);
-        ctx.translate(-videoWidth, 0);
-        // ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
-        ctx.restore();
-      }
+      // ctxTFJS.clearRect(0, 0, videoWidth, videoHeight);
+      //
+      // if (guiState.output.showVideo) {
+      //   ctxTFJS.save();
+      //   ctxTFJS.scale(-1, 1);
+      //   ctxTFJS.translate(-videoWidth, 0);
+      //   // ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+      //   ctxTFJS.restore();
+      // }
 
       pose.forEach(({score, keypoints}) => {
         if (score >= minPoseConfidence) {
           // TODO draw position here
-          drawKeypoints(keypoints, minPartConfidence, ctx);
+          // drawKeypoints(keypoints, minPartConfidence, ctxTFJS);
           // TODO use position info here
-          // parsePosition(keypoints)
+          parsePosition(keypoints)
         }
       });
+      // TFJS End
+
+      // CLM Start
+      ctxCLM.clearRect(0, 0, videoWidth, videoHeight);
+      //psrElement.innerHTML = "score :" + ctrack.getScore().toFixed(4);
+      if (ctrack.getCurrentPosition()) {
+        console.log(ctrack);
+        ctrack.draw(canvasCLM);
+      }
+      // CLM End
 
       // End monitoring code for frames per second
       stats.end();
@@ -214,4 +244,20 @@ export function detect(video, canvas) {
 
     poseDetectionFrame();
   }
+}
+
+/**
+ * Parse position data
+ * @param positions
+ */
+function parsePosition(positions) {
+  positions = {
+    'nose': positions[0],
+    'leftEye': positions[1],
+    'rightEye': positions[2],
+    'leftEar': positions[3],
+    'rightEar': positions[4],
+  };
+
+  // console.log(positions);
 }

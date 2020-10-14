@@ -341,6 +341,10 @@ export function detect(video, canvasTFJS, canvasCLM) {
     canvasTFJS.width = videoWidth;
     canvasTFJS.height = videoHeight;
 
+    canvasCLM.width = videoWidth;
+    canvasCLM.height = videoHeight;
+
+
     // since images are being fed from a webcam, we want to feed in the
     // original image and then just flip the keypoints' x coordinates. If instead
     // we flip the image, then correcting left-right keypoint pairs requires a
