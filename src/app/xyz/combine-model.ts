@@ -170,6 +170,29 @@ export async function bindPage(videoElementId: string, canvasElementIdTFJS: stri
 }
 
 /**
+ * detect point of face.
+ * @param video
+ * @constructor
+ */
+async function TFJSDetect(video: any): Promise<void> {
+  const pose = await guiState.net.estimatePoses(video, {
+    flipHorizontal: flipPoseHorizontal,
+    decodingMethod: 'single-person'
+  });
+
+  const minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
+
+  pose.forEach(({score, keypoints}) => {
+    if (score >= minPoseConfidence) {
+      // TODO draw position here
+      // drawKeypoints(keypoints, minPartConfidence, ctxTFJS);
+      // TODO use position info here
+      parsePosition(keypoints);
+    }
+  });
+}
+
+/**
  *
  * @param video
  * @param canvasTFJS
@@ -196,7 +219,6 @@ export function detect(video: any, canvasTFJS: any, canvasCLM: any): void {
     async function poseDetectionFrame(): Promise<void> {
       // Begin monitoring code for frames per second
       stats.begin();
-
       // TFJS Start
       // FIXME fps is stuck this line
       const pose = await guiState.net.estimatePoses(video, {
@@ -205,7 +227,6 @@ export function detect(video: any, canvasTFJS: any, canvasCLM: any): void {
       });
 
       const minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
-      const minPartConfidence = +guiState.singlePoseDetection.minPartConfidence;
 
       // ctxTFJS.clearRect(0, 0, videoWidth, videoHeight);
       //
@@ -252,16 +273,17 @@ export function detect(video: any, canvasTFJS: any, canvasCLM: any): void {
 
 /**
  * Parse position data
- * @param positions
+ * @param TFJSPositions
  */
-function parsePosition(positions: any): void {
-  positions = {
-    nose: positions[0],
-    leftEye: positions[1],
-    rightEye: positions[2],
-    leftEar: positions[3],
-    rightEar: positions[4],
+function parsePosition(TFJSPositions: any): void {
+  TFJSPositions = {
+    nose: TFJSPositions[0],
+    leftEye: TFJSPositions[1],
+    rightEye: TFJSPositions[2],
+    leftEar: TFJSPositions[3],
+    rightEar: TFJSPositions[4],
   };
 
+  // console.log(CLMPositions);
   // console.log(positions);
 }

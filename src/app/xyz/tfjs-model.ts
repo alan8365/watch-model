@@ -1,7 +1,7 @@
 import * as posenet from '@tensorflow-models/posenet';
 import dat from 'dat.gui';
 import Stats from 'stats.js';
-import {drawBoundingBox, drawKeypoints, toggleLoadingUI,} from './util';
+import {drawBoundingBox, drawKeypoints, toggleLoadingUI, } from './util';
 
 import {
   InputResolution,
@@ -9,7 +9,7 @@ import {
   PoseNetArchitecture,
   PoseNetOutputStride,
   PoseNetQuantBytes
-} from "@tensorflow-models/posenet/dist/types";
+} from '@tensorflow-models/posenet/dist/types';
 
 const videoWidth = 600;
 const videoHeight = 500;
@@ -35,8 +35,8 @@ export async function setupCamera(videoElementId) {
     video.height = videoHeight;
 
     video.srcObject = await navigator.mediaDevices.getUserMedia({
-      'audio': false,
-      'video': {
+      audio: false,
+      video: {
         facingMode: 'user',
         width: videoWidth,
         height: videoHeight,
@@ -68,7 +68,7 @@ export async function loadVideo(videoElementId) {
  */
 const defaultQuantBytes: PoseNetQuantBytes = 2;
 
-const defaultArchitecture: PoseNetArchitecture = 'MobileNetV1'
+const defaultArchitecture: PoseNetArchitecture = 'MobileNetV1';
 const defaultMobileNetMultiplier: MobileNetMultiplier = 0.75;
 const defaultMobileNetStride: PoseNetOutputStride = 16;
 const defaultMobileNetInputResolution: InputResolution = 500;
@@ -138,7 +138,7 @@ function setupGui(cameras, net) {
 
   // The input parameters have the most effect on accuracy and speed of the
   // network
-  let input = gui.addFolder('Input');
+  const input = gui.addFolder('Input');
   // Architecture: there are a few PoseNet models varying in size and
   // accuracy. 1.01 is the largest, but will be the slowest. 0.50 is the
   // fastest, but least accurate.
@@ -161,7 +161,7 @@ function setupGui(cameras, net) {
     guiState.input.inputResolution = inputResolution;
     inputResolutionController =
       input.add(guiState.input, 'inputResolution', inputResolutionArray);
-    inputResolutionController.onChange(function (inputResolution) {
+    inputResolutionController.onChange(function(inputResolution) {
       guiState.changeToInputResolution = inputResolution;
     });
   }
@@ -180,7 +180,7 @@ function setupGui(cameras, net) {
     guiState.input.outputStride = outputStride;
     outputStrideController =
       input.add(guiState.input, 'outputStride', outputStrideArray);
-    outputStrideController.onChange(function (outputStride) {
+    outputStrideController.onChange(function(outputStride) {
       guiState.changeToOutputStride = outputStride;
     });
   }
@@ -198,7 +198,7 @@ function setupGui(cameras, net) {
     guiState.input.multiplier = multiplier;
     multiplierController =
       input.add(guiState.input, 'multiplier', multiplierArray);
-    multiplierController.onChange(function (multiplier) {
+    multiplierController.onChange(function(multiplier) {
       guiState.changeToMultiplier = multiplier;
     });
   }
@@ -217,7 +217,7 @@ function setupGui(cameras, net) {
     // guiState.input.quantBytes = +quantBytes;
     quantBytesController =
       input.add(guiState.input, 'quantBytes', quantBytesArray);
-    quantBytesController.onChange(function (quantBytes) {
+    quantBytesController.onChange(function(quantBytes) {
       guiState.changeToQuantBytes = +quantBytes;
     });
   }
@@ -245,11 +245,11 @@ function setupGui(cameras, net) {
   // pose (i.e. a person detected in a frame)
   // Min part confidence: the confidence that a particular estimated keypoint
   // position is accurate (i.e. the elbow's position)
-  let single = gui.addFolder('Single Pose Detection');
+  const single = gui.addFolder('Single Pose Detection');
   single.add(guiState.singlePoseDetection, 'minPoseConfidence', 0.0, 1.0);
   single.add(guiState.singlePoseDetection, 'minPartConfidence', 0.0, 1.0);
 
-  let multi = gui.addFolder('Multi Pose Detection');
+  const multi = gui.addFolder('Multi Pose Detection');
   multi.add(guiState.multiPoseDetection, 'maxPoseDetections')
     .min(1)
     .max(20)
@@ -261,7 +261,7 @@ function setupGui(cameras, net) {
   multi.add(guiState.multiPoseDetection, 'nmsRadius').min(0.0).max(40.0);
   multi.open();
 
-  let output = gui.addFolder('Output');
+  const output = gui.addFolder('Output');
   output.add(guiState.output, 'showVideo');
   output.add(guiState.output, 'showSkeleton');
   output.add(guiState.output, 'showPoints');
@@ -269,13 +269,13 @@ function setupGui(cameras, net) {
   output.open();
 
 
-  architectureController.onChange(function (architecture) {
+  architectureController.onChange(function(architecture) {
     // if architecture is ResNet50, then show ResNet50 options
     updateGui();
     guiState.changeToArchitecture = architecture;
   });
 
-  algorithmController.onChange(function (value) {
+  algorithmController.onChange(function(value) {
     switch (guiState.algorithm) {
       case 'single-pose':
         multi.close();
@@ -309,14 +309,14 @@ export async function bindPage(videoElementId: string, canvasElementIdTFJS: stri
   toggleLoadingUI(false);
 
   let video;
-  let canvasTFJS = document.getElementById(canvasElementIdTFJS);
-  let canvasCLM = document.getElementById(canvasElementIdCLM);
+  const canvasTFJS = document.getElementById(canvasElementIdTFJS);
+  const canvasCLM = document.getElementById(canvasElementIdCLM);
 
   try {
     video = await loadVideo(videoElementId);
   } catch (e) {
     // FIXME general
-    let info = document.getElementById('info');
+    const info = document.getElementById('info');
     info.textContent = 'this browser does not support video capture,' +
       'or this device does not have a camera';
     info.style.display = 'block';
@@ -360,8 +360,8 @@ export function detect(video, canvasTFJS, canvasCLM) {
         decodingMethod: 'single-person'
       });
 
-      let minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
-      let minPartConfidence = +guiState.singlePoseDetection.minPartConfidence;
+      const minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
+      const minPartConfidence = +guiState.singlePoseDetection.minPartConfidence;
 
       ctxTFJS.clearRect(0, 0, videoWidth, videoHeight);
 
@@ -378,7 +378,7 @@ export function detect(video, canvasTFJS, canvasCLM) {
           // TODO draw position here
           drawKeypoints(keypoints, minPartConfidence, ctxTFJS);
           // TODO use position info here
-          parsePosition(keypoints)
+          parsePosition(keypoints);
         }
       });
 
@@ -414,11 +414,11 @@ export function isCanvas(obj: HTMLCanvasElement | HTMLElement): obj is HTMLCanva
  */
 function parsePosition(positions) {
   positions = {
-    'nose': positions[0],
-    'leftEye': positions[1],
-    'rightEye': positions[2],
-    'leftEar': positions[3],
-    'rightEar': positions[4],
+    nose: positions[0],
+    leftEye: positions[1],
+    rightEye: positions[2],
+    leftEar: positions[3],
+    rightEar: positions[4],
   };
 
   // console.log(positions);
