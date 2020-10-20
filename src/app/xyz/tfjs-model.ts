@@ -1,7 +1,7 @@
 import * as posenet from '@tensorflow-models/posenet';
 import dat from 'dat.gui';
 import Stats from 'stats.js';
-import {drawBoundingBox, drawKeypoints, toggleLoadingUI, } from './util';
+import {drawBoundingBox, drawKeypoints, toggleLoadingUI,} from './util';
 
 import {
   InputResolution,
@@ -24,8 +24,12 @@ const stats = new Stats();
  */
 export async function setupCamera(videoElementId) {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    throw new Error(
-      'Browser API navigator.mediaDevices.getUserMedia not available');
+    // throw new Error(
+    //   'Browser API navigator.mediaDevices.getUserMedia not available');
+    insertAltVideo(vid);
+    document.getElementById('gum').className = 'hide';
+    document.getElementById('nogum').className = 'nohide';
+    alert('Your browser does not seem to support getUserMedia, using a fallback video instead.');
   }
 
   const video = document.getElementById(videoElementId);
@@ -61,6 +65,12 @@ export async function loadVideo(videoElementId) {
   }
 
   return video;
+}
+
+function insertAltVideo(video) {
+  // insert alternate video if getUserMedia not available
+  video.src = './media/cap12_edit.webm';
+  // video.src = './media/cap12_edit.mp4';
 }
 
 /**
