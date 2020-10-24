@@ -26,7 +26,6 @@ export async function setupCamera(videoElementId) {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     // throw new Error(
     //   'Browser API navigator.mediaDevices.getUserMedia not available');
-    insertAltVideo(vid);
     document.getElementById('gum').className = 'hide';
     document.getElementById('nogum').className = 'nohide';
     alert('Your browser does not seem to support getUserMedia, using a fallback video instead.');

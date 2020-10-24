@@ -10,9 +10,9 @@ import {drawBoundingBox, drawKeypoints, toggleLoadingUI} from './util';
 import Stats from 'stats.js';
 import * as posenet from '@tensorflow-models/posenet';
 import clm from 'clmtrackr';
+import { pow, sqrt, square } from '@tensorflow/tfjs';
 
 // Setup start
-
 const videoWidth = 600;
 const videoHeight = 500;
 const stats = new Stats();
@@ -79,6 +79,8 @@ const ctrack = new clm.tracker({
   },
 });
 ctrack.init();
+
+var TFJSPositions;
 
 /**
  * Loads a the camera to be used in the demo
@@ -166,6 +168,7 @@ export async function bindPage(videoElementId: string, canvasElementIdTFJS: stri
   }
 
   guiState.net = net;
+  TFJSDetect(video, canvasTFJS);
   detect(video, canvasTFJS, canvasCLM);
 }
 
@@ -174,22 +177,57 @@ export async function bindPage(videoElementId: string, canvasElementIdTFJS: stri
  * @param video
  * @constructor
  */
-async function TFJSDetect(video: any): Promise<void> {
-  const pose = await guiState.net.estimatePoses(video, {
-    flipHorizontal: flipPoseHorizontal,
-    decodingMethod: 'single-person'
-  });
+async function TFJSDetect(video: any, canvasTFJS: any): Promise<void> {
+  if (isCanvas(canvasTFJS)) {
+    const ctxTFJS = canvasTFJS.getContext('2d');
 
-  const minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
+    canvasTFJS.width = videoWidth;
+    canvasTFJS.height = videoHeight;
 
-  pose.forEach(({score, keypoints}) => {
-    if (score >= minPoseConfidence) {
-      // TODO draw position here
-      // drawKeypoints(keypoints, minPartConfidence, ctxTFJS);
-      // TODO use position info here
-      parsePosition(keypoints);
+    // since images are being fed from a webcam, we want to feed in the
+    // original image and then just flip the keypoints' x coordinates. If instead
+    // we flip the image, then correcting left-right keypoint pairs requires a
+    // permutation on all the keypoints.
+
+    async function poseDetectionFrame(): Promise<void> {
+      // Begin monitoring code for frames per second
+      stats.begin();
+      // TFJS Start
+      // FIXME fps is stuck this line
+      const pose = await guiState.net.estimatePoses(video, {
+        flipHorizontal: flipPoseHorizontal,
+        decodingMethod: 'single-person'
+      });
+
+      const minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
+      const minPartConfidence = +guiState.singlePoseDetection.minPartConfidence;
+
+      ctxTFJS.clearRect(0, 0, videoWidth, videoHeight);
+
+      // if (guiState.output.showVideo) {
+      //   ctxTFJS.save();
+      //   ctxTFJS.scale(-1, 1);
+      //   ctxTFJS.translate(-videoWidth, 0);
+      //   ctxTFJS.drawImage(video, 0, 0, videoWidth, videoHeight);
+      //   ctxTFJS.restore();
+      // }
+
+      pose.forEach(({score, keypoints}) => {
+        if (score >= minPoseConfidence) {
+          // TODO draw position here
+          drawKeypoints(keypoints, minPartConfidence, ctxTFJS);
+          // TODO use position info here
+          TFJSPositions = parseTFJSPosition(keypoints);
+        }
+      });
+      // TFJS End
+      requestAnimationFrame(poseDetectionFrame);
     }
-  });
+
+    // setInterval(poseDetectionFrame, 50);
+
+    poseDetectionFrame();
+  }
 }
 
 /**
@@ -227,25 +265,26 @@ export function detect(video: any, canvasTFJS: any, canvasCLM: any): void {
       });
 
       const minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
+      const minPartConfidence = +guiState.singlePoseDetection.minPartConfidence;
 
-      // ctxTFJS.clearRect(0, 0, videoWidth, videoHeight);
-      //
+      ctxTFJS.clearRect(0, 0, videoWidth, videoHeight);
+
       // if (guiState.output.showVideo) {
       //   ctxTFJS.save();
       //   ctxTFJS.scale(-1, 1);
       //   ctxTFJS.translate(-videoWidth, 0);
-      //   // ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+      //   ctxTFJS.drawImage(video, 0, 0, videoWidth, videoHeight);
       //   ctxTFJS.restore();
       // }
 
-      pose.forEach(({score, keypoints}) => {
-        if (score >= minPoseConfidence) {
-          // TODO draw position here
-          // drawKeypoints(keypoints, minPartConfidence, ctxTFJS);
-          // TODO use position info here
-          parsePosition(keypoints);
-        }
-      });
+      // pose.forEach(({score, keypoints}) => {
+      //   if (score >= minPoseConfidence) {
+      //     // TODO draw position here
+      //     drawKeypoints(keypoints, minPartConfidence, ctxTFJS);
+      //     // TODO use position info here
+      //     parsePosition(keypoints);
+      //   }
+      // });
       // TFJS End
 
       // CLM Start
@@ -256,7 +295,11 @@ export function detect(video: any, canvasTFJS: any, canvasCLM: any): void {
       //   this.draw(canvasCLM);
       // });
       if (ctrack.getCurrentPosition()) {
-        console.log(ctrack);
+        let positions = parseCLMPosition(ctrack.getCurrentPosition());
+        console.log(positions);
+        console.log(TFJSPositions);
+        console.log(temp(positions, TFJSPositions));
+        // console.log(TFJSPositions);
         ctrack.draw(canvasCLM);
       }
       // CLM End
@@ -273,17 +316,50 @@ export function detect(video: any, canvasTFJS: any, canvasCLM: any): void {
 
 /**
  * Parse position data
- * @param TFJSPositions
+ * @param positions
  */
-function parsePosition(TFJSPositions: any): void {
-  TFJSPositions = {
-    nose: TFJSPositions[0],
-    leftEye: TFJSPositions[1],
-    rightEye: TFJSPositions[2],
-    leftEar: TFJSPositions[3],
-    rightEar: TFJSPositions[4],
+function parseTFJSPosition(positions: any): void {
+  positions = {
+    nose: positions[0]["position"],
+    leftEye: positions[1]["position"],
+    rightEye: positions[2]["position"],
+    leftEar: positions[3]["position"],
+    rightEar: positions[4]["position"],
   };
 
+  return positions;
+
+  TFJSPositions = positions;
   // console.log(CLMPositions);
   // console.log(positions);
+}
+
+//TODO has data problem.
+/**
+ * Parse position data
+ * @param positions
+ */
+function parseCLMPosition(positions: any): void {
+  positions = {
+    nose: {x: positions[62][0], y:positions[62][1]},
+    leftEye: {x: positions[27][0], y:positions[27][1]},
+    rightEye: {x: positions[32][0], y:positions[32][1]},
+    leftEar: {x: positions[1][0], y:positions[1][1]},
+    rightEar: {x: positions[13][0], y:positions[13][1]},
+  };
+
+  return positions;
+}
+
+function distansTwoDim(position1: any, position2: any){
+  let a1 = Math.pow(position1['x'] - position2['x'], 2);
+  let a2 = Math.pow(position1['y'] - position2['y'], 2);
+
+  return Math.sqrt(a1 + a2);
+}
+
+function temp(positions1, positions2){
+  return {
+    "leftEye": distansTwoDim(positions1["leftEye"], positions2["leftEye"])
+  }
 }
