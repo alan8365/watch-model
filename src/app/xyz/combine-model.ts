@@ -6,7 +6,7 @@ import {
   PoseNetOutputStride,
   PoseNetQuantBytes
 } from '@tensorflow-models/posenet/dist/types';
-import {drawBoundingBox, drawKeypoints, toggleLoadingUI} from './util';
+import {drawPoint, drawKeypoints, toggleLoadingUI} from './util';
 import Stats from 'stats.js';
 import * as posenet from '@tensorflow-models/posenet';
 import clm from 'clmtrackr';
@@ -16,7 +16,7 @@ import { pow, sqrt, square } from '@tensorflow/tfjs';
 const videoWidth = 600;
 const videoHeight = 500;
 const stats = new Stats();
-const flipPoseHorizontal = true;
+const flipPoseHorizontal = false;
 
 /*
  net start
@@ -215,7 +215,7 @@ async function TFJSDetect(video: any, canvasTFJS: any): Promise<void> {
       pose.forEach(({score, keypoints}) => {
         if (score >= minPoseConfidence) {
           // TODO draw position here
-          drawKeypoints(keypoints, minPartConfidence, ctxTFJS);
+          // drawKeypoints(keypoints, minPartConfidence, ctxTFJS);
           // TODO use position info here
           TFJSPositions = parseTFJSPosition(keypoints);
         }
@@ -259,15 +259,16 @@ export function detect(video: any, canvasTFJS: any, canvasCLM: any): void {
       stats.begin();
       // TFJS Start
       // FIXME fps is stuck this line
-      const pose = await guiState.net.estimatePoses(video, {
-        flipHorizontal: flipPoseHorizontal,
-        decodingMethod: 'single-person'
-      });
 
-      const minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
-      const minPartConfidence = +guiState.singlePoseDetection.minPartConfidence;
+      // const pose = await guiState.net.estimatePoses(video, {
+      //   flipHorizontal: flipPoseHorizontal,
+      //   decodingMethod: 'single-person'
+      // });
 
-      ctxTFJS.clearRect(0, 0, videoWidth, videoHeight);
+      // const minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
+      // const minPartConfidence = +guiState.singlePoseDetection.minPartConfidence;
+
+      // ctxTFJS.clearRect(0, 0, videoWidth, videoHeight);
 
       // if (guiState.output.showVideo) {
       //   ctxTFJS.save();
@@ -296,11 +297,29 @@ export function detect(video: any, canvasTFJS: any, canvasCLM: any): void {
       // });
       if (ctrack.getCurrentPosition()) {
         let positions = parseCLMPosition(ctrack.getCurrentPosition());
-        console.log(positions);
-        console.log(TFJSPositions);
-        console.log(temp(positions, TFJSPositions));
+        if (TFJSPositions){
+          let distance = temp(positions, TFJSPositions);
+          let drawFlag = true;
+
+          for(const [key, value] of Object.entries(distance)){
+            if (value > 30){
+              drawFlag = false;
+            }
+          }
+
+          for(const [key, value] of Object.entries(positions)){
+            drawPoint(ctxCLM, value['y'], value['x'], 3, 'pink');
+          }
+
+          for(const [key, value] of Object.entries(TFJSPositions)){
+            drawPoint(ctxCLM, value['y'], value['x'], 3, 'aqua');
+          }
+
+          if (drawFlag){
+            ctrack.draw(canvasCLM);
+          }
+        }
         // console.log(TFJSPositions);
-        ctrack.draw(canvasCLM);
       }
       // CLM End
 
@@ -328,8 +347,6 @@ function parseTFJSPosition(positions: any): void {
   };
 
   return positions;
-
-  TFJSPositions = positions;
   // console.log(CLMPositions);
   // console.log(positions);
 }
@@ -339,27 +356,31 @@ function parseTFJSPosition(positions: any): void {
  * Parse position data
  * @param positions
  */
-function parseCLMPosition(positions: any): void {
+function parseCLMPosition(positions: any): Object {
   positions = {
     nose: {x: positions[62][0], y:positions[62][1]},
-    leftEye: {x: positions[27][0], y:positions[27][1]},
-    rightEye: {x: positions[32][0], y:positions[32][1]},
-    leftEar: {x: positions[1][0], y:positions[1][1]},
-    rightEar: {x: positions[13][0], y:positions[13][1]},
+    rightEye: {x: positions[27][0], y:positions[27][1]},
+    leftEye: {x: positions[32][0], y:positions[32][1]},
+    rightEar: {x: positions[1][0], y:positions[1][1]},
+    leftEar: {x: positions[13][0], y:positions[13][1]},
   };
 
   return positions;
 }
 
-function distansTwoDim(position1: any, position2: any){
+function distanceTwoDim(position1: any, position2: any){
   let a1 = Math.pow(position1['x'] - position2['x'], 2);
   let a2 = Math.pow(position1['y'] - position2['y'], 2);
 
   return Math.sqrt(a1 + a2);
 }
 
-function temp(positions1, positions2){
-  return {
-    "leftEye": distansTwoDim(positions1["leftEye"], positions2["leftEye"])
+function temp(positions1, positions2): Object{
+  let result = {};
+
+  for(const [key, value] of Object.entries(positions1)){
+    result[key] = distanceTwoDim(positions1[key], positions2[key]);
   }
+
+  return result;
 }
