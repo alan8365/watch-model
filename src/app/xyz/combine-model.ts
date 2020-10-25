@@ -6,11 +6,10 @@ import {
   PoseNetOutputStride,
   PoseNetQuantBytes
 } from '@tensorflow-models/posenet/dist/types';
-import {drawPoint, drawKeypoints, toggleLoadingUI} from './util';
+import {drawPoint, toggleLoadingUI} from './util';
 import Stats from 'stats.js';
 import * as posenet from '@tensorflow-models/posenet';
 import clm from 'clmtrackr';
-import { pow, sqrt, square } from '@tensorflow/tfjs';
 
 // Setup start
 const videoWidth = 600;
@@ -169,7 +168,7 @@ export async function bindPage(videoElementId: string, canvasElementIdTFJS: stri
 
   guiState.net = net;
   TFJSDetect(video, canvasTFJS);
-  detect(video, canvasTFJS, canvasCLM);
+  CLMDetect(video, canvasTFJS, canvasCLM);
 }
 
 /**
@@ -236,7 +235,7 @@ async function TFJSDetect(video: any, canvasTFJS: any): Promise<void> {
  * @param canvasTFJS
  * @param canvasCLM
  */
-export function detect(video: any, canvasTFJS: any, canvasCLM: any): void {
+export function CLMDetect(video: any, canvasTFJS: any, canvasCLM: any): void {
   if (isCanvas(canvasTFJS) && isCanvas(canvasCLM)) {
     const ctxTFJS = canvasTFJS.getContext('2d');
     const ctxCLM = canvasCLM.getContext('2d');
@@ -257,36 +256,6 @@ export function detect(video: any, canvasTFJS: any, canvasCLM: any): void {
     async function poseDetectionFrame(): Promise<void> {
       // Begin monitoring code for frames per second
       stats.begin();
-      // TFJS Start
-      // FIXME fps is stuck this line
-
-      // const pose = await guiState.net.estimatePoses(video, {
-      //   flipHorizontal: flipPoseHorizontal,
-      //   decodingMethod: 'single-person'
-      // });
-
-      // const minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
-      // const minPartConfidence = +guiState.singlePoseDetection.minPartConfidence;
-
-      // ctxTFJS.clearRect(0, 0, videoWidth, videoHeight);
-
-      // if (guiState.output.showVideo) {
-      //   ctxTFJS.save();
-      //   ctxTFJS.scale(-1, 1);
-      //   ctxTFJS.translate(-videoWidth, 0);
-      //   ctxTFJS.drawImage(video, 0, 0, videoWidth, videoHeight);
-      //   ctxTFJS.restore();
-      // }
-
-      // pose.forEach(({score, keypoints}) => {
-      //   if (score >= minPoseConfidence) {
-      //     // TODO draw position here
-      //     drawKeypoints(keypoints, minPartConfidence, ctxTFJS);
-      //     // TODO use position info here
-      //     parsePosition(keypoints);
-      //   }
-      // });
-      // TFJS End
 
       // CLM Start
       ctxCLM.clearRect(0, 0, videoWidth, videoHeight);
@@ -298,7 +267,7 @@ export function detect(video: any, canvasTFJS: any, canvasCLM: any): void {
       if (ctrack.getCurrentPosition()) {
         let positions = parseCLMPosition(ctrack.getCurrentPosition());
         if (TFJSPositions){
-          let distance = temp(positions, TFJSPositions);
+          let distance = checkAllDistance(positions, TFJSPositions);
           let drawFlag = true;
 
           for(const [key, value] of Object.entries(distance)){
@@ -314,6 +283,8 @@ export function detect(video: any, canvasTFJS: any, canvasCLM: any): void {
           for(const [key, value] of Object.entries(TFJSPositions)){
             drawPoint(ctxCLM, value['y'], value['x'], 3, 'aqua');
           }
+
+          cheatDetect(positions, TFJSPositions, drawFlag);
 
           if (drawFlag){
             ctrack.draw(canvasCLM);
@@ -351,7 +322,6 @@ function parseTFJSPosition(positions: any): void {
   // console.log(positions);
 }
 
-//TODO has data problem.
 /**
  * Parse position data
  * @param positions
@@ -368,14 +338,24 @@ function parseCLMPosition(positions: any): Object {
   return positions;
 }
 
-function distanceTwoDim(position1: any, position2: any){
+/**
+ * 
+ * @param position1 
+ * @param position2 
+ */
+function distanceTwoDim(position1: Object, position2: Object): number{
   let a1 = Math.pow(position1['x'] - position2['x'], 2);
   let a2 = Math.pow(position1['y'] - position2['y'], 2);
 
   return Math.sqrt(a1 + a2);
 }
 
-function temp(positions1, positions2): Object{
+/**
+ * 
+ * @param positions1 
+ * @param positions2 
+ */
+function checkAllDistance(positions1: Object, positions2: Object): Object{
   let result = {};
 
   for(const [key, value] of Object.entries(positions1)){
@@ -383,4 +363,35 @@ function temp(positions1, positions2): Object{
   }
 
   return result;
+}
+
+/**
+ * 
+ * @param CLMPositions 
+ * @param TFJSPositions 
+ * @param drawFlag 
+ */
+function cheatDetect(CLMPositions: Object, TFJSPositions: Object, drawFlag: boolean): void{
+  const sensitivity = 10;
+  const headTurnLeftFlag = TFJSPositions['leftEye'] - TFJSPositions['leftEar'] < sensitivity;
+  const headTurnRightFlag = TFJSPositions['rightEye'] - TFJSPositions['rightEar'] < sensitivity;
+
+  if(drawFlag){
+    // TODO TFJS position combine postions
+    const eyeTurnLeftFlag = false;
+    const eyeTurnRightFlag = false;
+
+    if(headTurnLeftFlag || headTurnRightFlag || eyeTurnLeftFlag || eyeTurnRightFlag){
+      callBackend();
+    }
+  }else{
+    if(headTurnLeftFlag || headTurnRightFlag){
+      callBackend();
+    }
+  }
+}
+
+// TODO temp function
+function callBackend(){
+  console.log("someone cheat!!!!!!")
 }
