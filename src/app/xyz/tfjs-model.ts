@@ -384,6 +384,7 @@ export function detect(video, canvasTFJS, canvasCLM) {
 
       pose.forEach(({score, keypoints}) => {
         if (score >= minPoseConfidence) {
+          console.log(score);
           // TODO draw position here
           drawKeypoints(keypoints, minPartConfidence, ctxTFJS);
           // TODO use position info here

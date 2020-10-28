@@ -41,7 +41,7 @@ const guiState = {
     quantBytes: defaultQuantBytes
   },
   singlePoseDetection: {
-    minPoseConfidence: 0.1,
+    minPoseConfidence: 0.05,
     minPartConfidence: 0.5,
   },
   multiPoseDetection: {
@@ -80,6 +80,7 @@ const ctrack = new clm.tracker({
 ctrack.init();
 
 var TFJSPositions;
+var nonCheatingFlag = true;
 
 /**
  * Loads a the camera to be used in the demo
@@ -138,7 +139,7 @@ export async function loadVideo(videoElementId: any): Promise<HTMLElement> {
  * @param canvasElementIdTFJS
  * @param canvasElementIdCLM
  */
-export async function bindPage(videoElementId: string, canvasElementIdTFJS: string, canvasElementIdCLM: string): Promise<void> {
+export async function bindPage(videoElementId: string, canvasElementIdTFJS: string, canvasElementIdCLM: string, minPoseConfidence?: number): Promise<void> {
   toggleLoadingUI(true);
 
   const net = await posenet.load({
@@ -167,7 +168,8 @@ export async function bindPage(videoElementId: string, canvasElementIdTFJS: stri
   }
 
   guiState.net = net;
-  TFJSDetect(video, canvasTFJS);
+
+  TFJSDetect(video, canvasTFJS, minPoseConfidence);
   CLMDetect(video, canvasTFJS, canvasCLM);
 }
 
@@ -176,7 +178,7 @@ export async function bindPage(videoElementId: string, canvasElementIdTFJS: stri
  * @param video
  * @constructor
  */
-async function TFJSDetect(video: any, canvasTFJS: any): Promise<void> {
+async function TFJSDetect(video: any, canvasTFJS: any, minPoseConfidence: number): Promise<void> {
   if (isCanvas(canvasTFJS)) {
     const ctxTFJS = canvasTFJS.getContext('2d');
 
@@ -188,6 +190,7 @@ async function TFJSDetect(video: any, canvasTFJS: any): Promise<void> {
     // we flip the image, then correcting left-right keypoint pairs requires a
     // permutation on all the keypoints.
 
+    minPoseConfidence = minPoseConfidence || +guiState.singlePoseDetection.minPoseConfidence;
     async function poseDetectionFrame(): Promise<void> {
       // Begin monitoring code for frames per second
       stats.begin();
@@ -198,32 +201,20 @@ async function TFJSDetect(video: any, canvasTFJS: any): Promise<void> {
         decodingMethod: 'single-person'
       });
 
-      const minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
+      // const minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
       const minPartConfidence = +guiState.singlePoseDetection.minPartConfidence;
 
       ctxTFJS.clearRect(0, 0, videoWidth, videoHeight);
 
-      // if (guiState.output.showVideo) {
-      //   ctxTFJS.save();
-      //   ctxTFJS.scale(-1, 1);
-      //   ctxTFJS.translate(-videoWidth, 0);
-      //   ctxTFJS.drawImage(video, 0, 0, videoWidth, videoHeight);
-      //   ctxTFJS.restore();
-      // }
 
       pose.forEach(({score, keypoints}) => {
         if (score >= minPoseConfidence) {
-          // TODO draw position here
-          // drawKeypoints(keypoints, minPartConfidence, ctxTFJS);
-          // TODO use position info here
           TFJSPositions = parseTFJSPosition(keypoints);
         }
       });
       // TFJS End
       requestAnimationFrame(poseDetectionFrame);
     }
-
-    // setInterval(poseDetectionFrame, 50);
 
     poseDetectionFrame();
   }
@@ -264,9 +255,14 @@ export function CLMDetect(video: any, canvasTFJS: any, canvasCLM: any): void {
       //   console.log(e);
       //   this.draw(canvasCLM);
       // });
-      if (ctrack.getCurrentPosition()) {
-        let positions = parseCLMPosition(ctrack.getCurrentPosition());
-        if (TFJSPositions){
+
+      if (TFJSPositions){
+        for(const [key, value] of Object.entries(TFJSPositions)){
+          drawPoint(ctxCLM, value['y'], value['x'], 3, 'aqua');
+        }
+
+        if (ctrack.getCurrentPosition()) {
+          let positions = parseCLMPosition(ctrack.getCurrentPosition());
           let distance = checkAllDistance(positions, TFJSPositions);
           let drawFlag = true;
 
@@ -280,17 +276,13 @@ export function CLMDetect(video: any, canvasTFJS: any, canvasCLM: any): void {
             drawPoint(ctxCLM, value['y'], value['x'], 3, 'pink');
           }
 
-          for(const [key, value] of Object.entries(TFJSPositions)){
-            drawPoint(ctxCLM, value['y'], value['x'], 3, 'aqua');
-          }
-
           cheatDetect(positions, TFJSPositions, drawFlag);
 
           if (drawFlag){
             ctrack.draw(canvasCLM);
           }
+          // console.log(TFJSPositions);
         }
-        // console.log(TFJSPositions);
       }
       // CLM End
 
@@ -372,26 +364,61 @@ function checkAllDistance(positions1: Object, positions2: Object): Object{
  * @param drawFlag 
  */
 function cheatDetect(CLMPositions: Object, TFJSPositions: Object, drawFlag: boolean): void{
-  const sensitivity = 10;
-  const headTurnLeftFlag = TFJSPositions['leftEye'] - TFJSPositions['leftEar'] < sensitivity;
-  const headTurnRightFlag = TFJSPositions['rightEye'] - TFJSPositions['rightEar'] < sensitivity;
+  const sensitivity = 25;
 
-  if(drawFlag){
-    // TODO TFJS position combine postions
-    const eyeTurnLeftFlag = false;
-    const eyeTurnRightFlag = false;
+  const headTurnLeftFlag = distanceTwoDim(TFJSPositions['leftEye'], TFJSPositions['leftEar']) < sensitivity;
+  const headTurnRightFlag = distanceTwoDim(TFJSPositions['rightEye'], TFJSPositions['rightEar']) < sensitivity;
 
-    if(headTurnLeftFlag || headTurnRightFlag || eyeTurnLeftFlag || eyeTurnRightFlag){
-      callBackend();
-    }
-  }else{
-    if(headTurnLeftFlag || headTurnRightFlag){
-      callBackend();
+  console.log(nonCheatingFlag);
+  if(nonCheatingFlag){
+    if(drawFlag){
+      // TODO TFJS position combine postions
+      const eyeTurnLeftFlag = false;
+      const eyeTurnRightFlag = false;
+
+      if(headTurnLeftFlag || headTurnRightFlag || eyeTurnLeftFlag || eyeTurnRightFlag){
+        callBackend();
+      }
+    }else{
+      if(headTurnLeftFlag || headTurnRightFlag){
+        callBackend();
+      }
     }
   }
+
 }
 
 // TODO temp function
-function callBackend(){
+async function callBackend(){
+  const canvas = document.getElementById('test1');
+  const video = document.getElementById("video");
+  const bububu = document.getElementById("bububu");
+  const timeInterval = 200;
+  const snapNumber = 3;
+
+  nonCheatingFlag = false;
+
+  if (isCanvas(canvas) && isVideo(video)){
+    canvas.width = videoWidth;
+    canvas.height = videoHeight;
+    const ctx = canvas.getContext('2d');
+
+    for (let counter = 0; counter < snapNumber; counter++) {
+      setTimeout(() => {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        let dataURI = canvas.toDataURL('image/jpeg');
+        console.log(dataURI);
+
+        let img = document.createElement("img");
+        img.setAttribute("src", dataURI);
+
+        bububu.appendChild(img);
+      }, timeInterval * counter)
+    }
+
+    setTimeout(() => {
+      nonCheatingFlag = true;
+    }, timeInterval * snapNumber)
+  }
   console.log("someone cheat!!!!!!")
 }

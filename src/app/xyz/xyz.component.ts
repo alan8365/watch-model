@@ -19,7 +19,7 @@ export class XyzComponent implements OnInit {
     // console.log(a);
     // await test(a);
     // TODO make render quickly
-    await bindPage("video", "output", "overlay");
+    await bindPage("video", "output", "overlay", 0.01);
     // await startVideo("video", "overlay");
 
 
