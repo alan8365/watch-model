@@ -1,7 +1,6 @@
 import {Component, OnInit} from '@angular/core';
 
-import {bindPage} from './combine-model';
-import {startVideo} from './clm-model';
+import {CheatDetectModel} from './combine-model';
 
 @Component({
   selector: 'app-xyz',
@@ -15,14 +14,8 @@ export class XyzComponent implements OnInit {
   }
 
   async ngOnInit(): Promise<void> {
-    // let a = await loadVideo();
-    // console.log(a);
-    // await test(a);
-    // TODO make render quickly
-    await bindPage("video", "output", "overlay", 0.01);
-    // await startVideo("video", "overlay");
-
-
+    const cheatDetectModel = new CheatDetectModel("video", "output", "overlay", console.log);
+    await cheatDetectModel.bindPage(0.01);
 
     // fps stats
     // stats = new Stats();

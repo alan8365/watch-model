@@ -214,3 +214,40 @@ function drawPoints(ctx, points, radius, color) {
 //       [heatmapY, heatmapX], [offsetPointY, offsetPointX], color, scale, ctx);
 //   }
 // }
+
+
+/**
+ * Check obj is HTMLVideoElement.
+ * @param obj
+ */
+export function isVideo(obj: HTMLVideoElement | HTMLElement): obj is HTMLVideoElement {
+  return obj.tagName === 'VIDEO';
+}
+
+/**
+ * Check obj is HTMLCanvasElement.
+ * @param obj
+ */
+export function isCanvas(obj: HTMLCanvasElement | HTMLElement): obj is HTMLCanvasElement {
+  return obj.tagName === 'CANVAS';
+}
+
+export function addData(chart, label, data) {
+  if (chart.data.labels.length > 80){
+    removeData(chart);
+  }
+
+  chart.data.labels.push(label);
+  chart.data.datasets.forEach((dataset) => {
+    dataset.data.push(data[dataset.label]);
+  });
+  chart.update();
+}
+
+function removeData(chart) {
+  chart.data.labels.splice(0, 1);
+  chart.data.datasets.forEach((dataset) => {
+      dataset.data.splice(0, 1);
+  });
+  chart.update();
+}
