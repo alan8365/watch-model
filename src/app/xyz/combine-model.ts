@@ -10,13 +10,13 @@ import {isCanvas, isVideo, drawPoint, addData} from './util';
 import * as posenet from '@tensorflow-models/posenet';
 import clm from 'clmtrackr';
 import Chart from 'chart.js';
-import {FacePositions, Vector2D} from './types';
+import {FacePosition, FaceScale, ModelType, Vector2D} from './types';
 
 export class CheatDetectModel {
   guiState: any;
   // TODO find datatype
   ctrack: any;
-  TFJSPositions: FacePositions;
+  TFJSPositions: FacePosition;
   nonCheatingFlag: boolean;
 
   videoWidth: number;
@@ -267,7 +267,7 @@ export class CheatDetectModel {
 
         pose.forEach(({score, keypoints}) => {
           if (score >= minPoseConfidence) {
-            cheatDetectModel.TFJSPositions = cheatDetectModel.parseTFJSPosition(keypoints);
+            cheatDetectModel.TFJSPositions = cheatDetectModel.parsePosition(keypoints, 'TFJS');
           }
         });
         // TFJS End
@@ -320,7 +320,7 @@ export class CheatDetectModel {
             drawPoint(ctxCLM, value.y, value.x, 3, 'aqua');
           }
 
-          const positions = cheatDetectModel.parseCLMPosition(cheatDetectModel.ctrack.getCurrentPosition());
+          const positions = cheatDetectModel.parsePosition(cheatDetectModel.ctrack.getCurrentPosition(), 'CLM');
           let drawFlag = true;
 
           if (cheatDetectModel.ctrack.getCurrentPosition()) {
@@ -358,58 +358,59 @@ export class CheatDetectModel {
 
   /**
    * Parse position data
-   * @param positions
+   * @param position
+   * @param positionsType
    */
-  parseTFJSPosition(positions: FacePositions): FacePositions {
-    positions = {
-      nose: positions[0].position,
-      leftEye: positions[1].position,
-      rightEye: positions[2].position,
-      leftEar: positions[3].position,
-      rightEar: positions[4].position,
-    };
+  parsePosition(position: FacePosition, positionsType: ModelType): FacePosition {
+    if (position) {
+      if (positionsType === 'CLM') {
+        position = {
+          nose: {x: position[62][0], y: position[62][1]},
+          rightEye: {x: position[27][0], y: position[27][1]},
+          leftEye: {x: position[32][0], y: position[32][1]},
+          rightEar: {x: position[1][0], y: position[1][1]},
+          leftEar: {x: position[13][0], y: position[13][1]},
+        };
+      } else if (positionsType === 'TFJS') {
+        position = {
+          nose: position[0].position,
+          leftEye: position[1].position,
+          rightEye: position[2].position,
+          leftEar: position[3].position,
+          rightEar: position[4].position,
+        };
+      }
+    }
 
-    return positions;
+    return position;
   }
 
-  measureRelativityPositions(positions: FacePositions): object {
+  measureRelativityPositions(positions: FacePosition): object {
     const widthOfFase = this.distanceTwoDim(positions.leftEar, positions.rightEar);
     const sensitivity = 0.3;
 
-    const result = {
-      positions: {
-        nose: 0,
-        leftEye: -this.distanceTwoDim(positions.leftEye, positions.nose) / widthOfFase,
-        rightEye: this.distanceTwoDim(positions.rightEye, positions.nose) / widthOfFase,
-        leftEar: -this.distanceTwoDim(positions.leftEar, positions.nose) / widthOfFase,
-        rightEar: this.distanceTwoDim(positions.rightEar, positions.nose) / widthOfFase,
-      },
-      headTurnFlag: undefined
+    let position: FaceScale;
+    let headTurnFlag = false;
+
+    position = {
+      nose: 0,
+      leftEye: -this.distanceTwoDim(positions.leftEye, positions.nose) / widthOfFase,
+      rightEye: this.distanceTwoDim(positions.rightEye, positions.nose) / widthOfFase,
+      leftEar: -this.distanceTwoDim(positions.leftEar, positions.nose) / widthOfFase,
+      rightEar: this.distanceTwoDim(positions.rightEar, positions.nose) / widthOfFase,
     };
 
-    result.headTurnFlag =
-      Math.abs(result.positions.rightEar - 0.5) > sensitivity && Math.abs(result.positions.rightEar - 0.5) > sensitivity;
+    headTurnFlag =
+      Math.abs(position.rightEar - 0.5) > sensitivity &&
+      Math.abs(position.rightEar - 0.5) > sensitivity;
+
+    const result = {
+      position,
+      headTurnFlag
+    };
 
     addData(this.chart, 'test', result);
     return result;
-  }
-
-  /**
-   * Parse position data
-   * @param positions
-   */
-  parseCLMPosition(positions: FacePositions): FacePositions {
-    if (positions) {
-      positions = {
-        nose: {x: positions[62][0], y: positions[62][1]},
-        rightEye: {x: positions[27][0], y: positions[27][1]},
-        leftEye: {x: positions[32][0], y: positions[32][1]},
-        rightEar: {x: positions[1][0], y: positions[1][1]},
-        leftEar: {x: positions[13][0], y: positions[13][1]},
-      };
-    }
-
-    return positions;
   }
 
   /**
@@ -445,7 +446,7 @@ export class CheatDetectModel {
    * @param TFJSPositions
    * @param drawFlag
    */
-  cheatDetect(CLMPositions: FacePositions, TFJSPositions: FacePositions, drawFlag: boolean): void {
+  cheatDetect(CLMPositions: FacePosition, TFJSPositions: FacePosition, drawFlag: boolean): void {
     const sensitivity = 0.3;
 
     const headTurnLeftFlag = this.distanceTwoDim(TFJSPositions.leftEye, TFJSPositions.leftEar) < sensitivity;
