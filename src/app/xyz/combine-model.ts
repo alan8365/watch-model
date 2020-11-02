@@ -5,18 +5,18 @@ import {
   PoseNetOutputStride,
   PoseNetQuantBytes
 } from '@tensorflow-models/posenet/dist/types';
-import { isCanvas, isVideo, drawPoint, addData } from './util';
+import {isCanvas, isVideo, drawPoint, addData} from './util';
 // import Stats from 'stats.js';
 import * as posenet from '@tensorflow-models/posenet';
 import clm from 'clmtrackr';
 import Chart from 'chart.js';
-import { ThrowStmt } from '@angular/compiler';
+import {FacePositions, Vector2D} from './types';
 
 export class CheatDetectModel {
-  guiState: Object;
+  guiState: any;
   // TODO find datatype
   ctrack: any;
-  TFJSPositions: Object;
+  TFJSPositions: FacePositions;
   nonCheatingFlag: boolean;
 
   videoWidth: number;
@@ -27,11 +27,11 @@ export class CheatDetectModel {
   canvasElementIdTFJS: string;
   canvasElementIdCLM: string;
 
-  cheatLog: Function;
+  cheatLog: (...args: any[]) => void;
 
   chart: Chart;
 
-  constructor(videoElementId: string, canvasElementIdTFJS: string, canvasElementIdCLM: string, cheatLog: Function) {
+  constructor(videoElementId: string, canvasElementIdTFJS: string, canvasElementIdCLM: string, cheatLog: (...args: any[]) => void) {
     // Setup start
     this.videoWidth = 640;
     this.videoHeight = 480;
@@ -107,8 +107,8 @@ export class CheatDetectModel {
 
     this.cheatLog = cheatLog;
 
-    //TODO delete test chart
-    const chartCanvas = document.getElementById("chart");
+    // TODO delete test chart
+    const chartCanvas = document.getElementById('chart');
 
     if (isCanvas(chartCanvas)) {
       const chartCtx = chartCanvas.getContext('2d');
@@ -187,13 +187,11 @@ export class CheatDetectModel {
 
   /**
    * Bind page with two model.
-   * @param videoElementId
-   * @param canvasElementIdTFJS
-   * @param canvasElementIdCLM
+   * @param minPoseConfidence
    */
   async bindPage(minPoseConfidence?: number): Promise<void> {
     // toggleLoadingUI(true);
-    const input = this.guiState['input'];
+    const input = this.guiState.input;
 
     const net = await posenet.load({
       architecture: input.architecture,
@@ -220,7 +218,7 @@ export class CheatDetectModel {
       throw e;
     }
 
-    this.guiState['net'] = net;
+    this.guiState.net = net;
 
     this.TFJSDetect(video, canvasTFJS, minPoseConfidence);
     this.CLMDetect(video, canvasTFJS, canvasCLM);
@@ -229,6 +227,8 @@ export class CheatDetectModel {
   /**
    * detect point of face.
    * @param video
+   * @param canvasTFJS
+   * @param minPoseConfidence
    * @constructor
    */
   async TFJSDetect(video: any, canvasTFJS: any, minPoseConfidence: number): Promise<void> {
@@ -243,28 +243,29 @@ export class CheatDetectModel {
       // we flip the image, then correcting left-right keypoint pairs requires a
       // permutation on all the keypoints.
 
-      minPoseConfidence = minPoseConfidence || +this.guiState['singlePoseDetection']['minPoseConfidence'];
-      let guiState = this.guiState;
-      let flipPoseHorizontal = this.flipPoseHorizontal;
+      minPoseConfidence = minPoseConfidence || +this.guiState.singlePoseDetection.minPoseConfidence;
+      const guiState = this.guiState;
+      const flipPoseHorizontal = this.flipPoseHorizontal;
 
-      let cheatDetectModel = this;
+      const cheatDetectModel = this;
+
       async function poseDetectionFrame(): Promise<void> {
         // Begin monitoring code for frames per second
         // stats.begin();
         // TFJS Start
         // FIXME fps is stuck this line
-        const pose = await guiState['net'].estimatePoses(video, {
+        const pose = await guiState.net.estimatePoses(video, {
           flipHorizontal: flipPoseHorizontal,
           decodingMethod: 'single-person'
         });
 
         // const minPoseConfidence = +guiState.singlePoseDetection.minPoseConfidence;
-        const minPartConfidence = +guiState['singlePoseDetection']['minPartConfidence'];
+        const minPartConfidence = +guiState.singlePoseDetection.minPartConfidence;
 
         ctxTFJS.clearRect(0, 0, cheatDetectModel.videoWidth, cheatDetectModel.videoHeight);
 
 
-        pose.forEach(({ score, keypoints }) => {
+        pose.forEach(({score, keypoints}) => {
           if (score >= minPoseConfidence) {
             cheatDetectModel.TFJSPositions = cheatDetectModel.parseTFJSPosition(keypoints);
           }
@@ -300,7 +301,7 @@ export class CheatDetectModel {
       // permutation on all the keypoints.
 
       this.ctrack.start(video);
-      let cheatDetectModel = this;
+      const cheatDetectModel = this;
 
       async function poseDetectionFrame(): Promise<void> {
         // Begin monitoring code for frames per second
@@ -316,14 +317,14 @@ export class CheatDetectModel {
 
         if (cheatDetectModel.TFJSPositions) {
           for (const [key, value] of Object.entries(cheatDetectModel.TFJSPositions)) {
-            drawPoint(ctxCLM, value['y'], value['x'], 3, 'aqua');
+            drawPoint(ctxCLM, value.y, value.x, 3, 'aqua');
           }
 
-          let positions = cheatDetectModel.parseCLMPosition(cheatDetectModel.ctrack.getCurrentPosition());
+          const positions = cheatDetectModel.parseCLMPosition(cheatDetectModel.ctrack.getCurrentPosition());
           let drawFlag = true;
 
           if (cheatDetectModel.ctrack.getCurrentPosition()) {
-            let distance = cheatDetectModel.checkAllDistance(positions, cheatDetectModel.TFJSPositions);
+            const distance = cheatDetectModel.checkAllDistance(positions, cheatDetectModel.TFJSPositions);
 
             for (const [key, value] of Object.entries(distance)) {
               if (value > 30) {
@@ -332,7 +333,7 @@ export class CheatDetectModel {
             }
 
             for (const [key, value] of Object.entries(positions)) {
-              drawPoint(ctxCLM, value['y'], value['x'], 3, 'pink');
+              drawPoint(ctxCLM, value.y, value.x, 3, 'pink');
             }
 
             if (drawFlag) {
@@ -359,35 +360,37 @@ export class CheatDetectModel {
    * Parse position data
    * @param positions
    */
-  parseTFJSPosition(positions: any): Object {
+  parseTFJSPosition(positions: FacePositions): FacePositions {
     positions = {
-      nose: positions[0]["position"],
-      leftEye: positions[1]["position"],
-      rightEye: positions[2]["position"],
-      leftEar: positions[3]["position"],
-      rightEar: positions[4]["position"],
+      nose: positions[0].position,
+      leftEye: positions[1].position,
+      rightEye: positions[2].position,
+      leftEar: positions[3].position,
+      rightEar: positions[4].position,
     };
 
     return positions;
   }
 
-  measureRelativityPositions(positions: Object): Object {
-    const widthOfFase = this.distanceTwoDim(positions["leftEar"], positions["rightEar"]);
+  measureRelativityPositions(positions: FacePositions): object {
+    const widthOfFase = this.distanceTwoDim(positions.leftEar, positions.rightEar);
     const sensitivity = 0.3;
 
-    let result = {
+    const result = {
       positions: {
         nose: 0,
-        leftEye: -this.distanceTwoDim(positions["leftEye"], positions["nose"]) / widthOfFase,
-        rightEye: this.distanceTwoDim(positions["rightEye"], positions["nose"]) / widthOfFase,
-        leftEar: -this.distanceTwoDim(positions["leftEar"], positions["nose"]) / widthOfFase,
-        rightEar: this.distanceTwoDim(positions["rightEar"], positions["nose"]) / widthOfFase,
+        leftEye: -this.distanceTwoDim(positions.leftEye, positions.nose) / widthOfFase,
+        rightEye: this.distanceTwoDim(positions.rightEye, positions.nose) / widthOfFase,
+        leftEar: -this.distanceTwoDim(positions.leftEar, positions.nose) / widthOfFase,
+        rightEar: this.distanceTwoDim(positions.rightEar, positions.nose) / widthOfFase,
       },
+      headTurnFlag: undefined
     };
 
-    result['headTurnFlag'] = Math.abs(result.positions.rightEar - 0.5) > sensitivity && Math.abs(result.positions.rightEar - 0.5) > sensitivity;
+    result.headTurnFlag =
+      Math.abs(result.positions.rightEar - 0.5) > sensitivity && Math.abs(result.positions.rightEar - 0.5) > sensitivity;
 
-    addData(this.chart, 'test', result)
+    addData(this.chart, 'test', result);
     return result;
   }
 
@@ -395,14 +398,14 @@ export class CheatDetectModel {
    * Parse position data
    * @param positions
    */
-  parseCLMPosition(positions: any): Object {
+  parseCLMPosition(positions: FacePositions): FacePositions {
     if (positions) {
       positions = {
-        nose: { x: positions[62][0], y: positions[62][1] },
-        rightEye: { x: positions[27][0], y: positions[27][1] },
-        leftEye: { x: positions[32][0], y: positions[32][1] },
-        rightEar: { x: positions[1][0], y: positions[1][1] },
-        leftEar: { x: positions[13][0], y: positions[13][1] },
+        nose: {x: positions[62][0], y: positions[62][1]},
+        rightEye: {x: positions[27][0], y: positions[27][1]},
+        leftEye: {x: positions[32][0], y: positions[32][1]},
+        rightEar: {x: positions[1][0], y: positions[1][1]},
+        leftEar: {x: positions[13][0], y: positions[13][1]},
       };
     }
 
@@ -411,12 +414,12 @@ export class CheatDetectModel {
 
   /**
    * Calculate two point's distance
-   * @param position1
-   * @param position2
+   * @param point1
+   * @param point2
    */
-  distanceTwoDim(position1: Object, position2: Object): number {
-    let a1 = Math.pow(position1['x'] - position2['x'], 2);
-    let a2 = Math.pow(position1['y'] - position2['y'], 2);
+  distanceTwoDim(point1: Vector2D, point2: Vector2D): number {
+    const a1 = Math.pow(point1.x - point2.x, 2);
+    const a2 = Math.pow(point1.y - point2.y, 2);
 
     return Math.sqrt(a1 + a2);
   }
@@ -426,8 +429,8 @@ export class CheatDetectModel {
    * @param positions1
    * @param positions2
    */
-  checkAllDistance(positions1: Object, positions2: Object): Object {
-    let result = {};
+  checkAllDistance(positions1: object, positions2: object): object {
+    const result = {};
 
     for (const [key, value] of Object.entries(positions1)) {
       result[key] = this.distanceTwoDim(positions1[key], positions2[key]);
@@ -442,11 +445,11 @@ export class CheatDetectModel {
    * @param TFJSPositions
    * @param drawFlag
    */
-  cheatDetect(CLMPositions: Object, TFJSPositions: Object, drawFlag: boolean): void {
+  cheatDetect(CLMPositions: FacePositions, TFJSPositions: FacePositions, drawFlag: boolean): void {
     const sensitivity = 0.3;
 
-    const headTurnLeftFlag = this.distanceTwoDim(TFJSPositions['leftEye'], TFJSPositions['leftEar']) < sensitivity;
-    const headTurnRightFlag = this.distanceTwoDim(TFJSPositions['rightEye'], TFJSPositions['rightEar']) < sensitivity;
+    const headTurnLeftFlag = this.distanceTwoDim(TFJSPositions.leftEye, TFJSPositions.leftEar) < sensitivity;
+    const headTurnRightFlag = this.distanceTwoDim(TFJSPositions.rightEye, TFJSPositions.rightEar) < sensitivity;
 
     const measureResult = this.measureRelativityPositions(TFJSPositions);
     if (this.nonCheatingFlag) {
@@ -468,12 +471,12 @@ export class CheatDetectModel {
   }
 
   // TODO temp
-  async callBackend() {
+  async callBackend(): Promise<void> {
     const canvas = document.getElementById(this.canvasElementIdCLM);
     const video = document.getElementById(this.videoElementId);
     const timeInterval = 200;
     const snapNumber = 3;
-    let data = [];
+    const data = [];
 
     this.nonCheatingFlag = false;
 
@@ -485,26 +488,26 @@ export class CheatDetectModel {
       for (let counter = 0; counter < snapNumber; counter++) {
         setTimeout(() => {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          let dataURI = canvas.toDataURL('image/jpeg');
+          const dataURI = canvas.toDataURL('image/jpeg');
           data.push(dataURI);
-        }, timeInterval * counter)
+        }, timeInterval * counter);
       }
 
       setTimeout(() => {
         // TODO post to backend
-        let payload = {
+        const payload = {
           studentId: localStorage.getItem('studentId'),
           studentName: localStorage.getItem('studentName'),
           cheatTime: Date.now(),
           cheatProbability: 0.9,
           cheatImages: data
-        }
+        };
         console.log(payload);
         // 學生傳送作弊機率
         this.cheatLog(localStorage.getItem('teacherIp'), payload);
         this.nonCheatingFlag = true;
-      }, timeInterval * snapNumber)
+      }, timeInterval * snapNumber);
     }
-    console.log("someone cheat!!!!!!")
+    console.log('someone cheat!!!!!!');
   }
 }

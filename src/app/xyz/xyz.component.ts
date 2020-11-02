@@ -14,7 +14,7 @@ export class XyzComponent implements OnInit {
   }
 
   async ngOnInit(): Promise<void> {
-    const cheatDetectModel = new CheatDetectModel("video", "output", "overlay", console.log);
+    const cheatDetectModel = new CheatDetectModel('video', 'output', 'overlay', console.log);
     await cheatDetectModel.bindPage(0.01);
 
     // fps stats
