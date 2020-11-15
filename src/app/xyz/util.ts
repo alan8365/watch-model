@@ -232,8 +232,8 @@ export function isCanvas(obj: HTMLCanvasElement | HTMLElement): obj is HTMLCanva
   return obj.tagName === 'CANVAS';
 }
 
-export function addData(chart, label, data) {
-  if (chart.data.labels.length > 80){
+export function addData(chart: any, label: string, data: object): void {
+  if (chart.data.labels.length > 80) {
     removeData(chart);
   }
 
@@ -241,13 +241,18 @@ export function addData(chart, label, data) {
   chart.data.datasets.forEach((dataset) => {
     dataset.data.push(data[dataset.label]);
   });
+
   chart.update();
 }
 
-function removeData(chart) {
+function removeData(chart: any): void {
   chart.data.labels.splice(0, 1);
   chart.data.datasets.forEach((dataset) => {
-      dataset.data.splice(0, 1);
+    dataset.data.splice(0, 1);
   });
   chart.update();
+}
+
+export function sigmoid(x: number): number {
+  return 1 / (1 + Math.exp(-x));
 }
