@@ -118,15 +118,20 @@ export class CheatDetectModel {
         type: 'line',
         data: {
           datasets: [{
-            label: 'possibility',
+            label: 'leftEye',
             data: [],
             borderWidth: 1,
             borderColor: 'aqua'
           }, {
-            label: 'bububu',
+            label: 'nose',
             data: [],
             borderWidth: 1,
             borderColor: 'pink'
+          }, {
+            label: 'leftEar',
+            data: [],
+            borderWidth: 1,
+            borderColor: 'purple'
           }]
         },
         options: {
@@ -334,14 +339,19 @@ export class CheatDetectModel {
           let drawFlag = false;
 
           if (cheatDetectModel.ctrack.getCurrentPosition()) {
-            const distance = cheatDetectModel.checkAllDistance(positions, cheatDetectModel.TFJSPositions);
+            const distance = cheatDetectModel.checkAllDistance(
+              positions,
+              cheatDetectModel.TFJSPositions
+            );
 
-            for (const [key, value] of Object.entries(distance)) {
-              if (value < 30) {
-                drawFlag = true;
-              }
+            console.log(distance);
+            addData(cheatDetectModel.chart, new Date().getMilliseconds().toString(), distance);
+
+            if (Object.values(distance).every((e) => e < 0.1)) {
+              drawFlag = true;
             }
 
+            // FIXME delete this in prod
             for (const [key, value] of Object.entries(positions)) {
               drawPoint(ctxCLM, value.y, value.x, 3, 'pink');
             }
@@ -395,14 +405,37 @@ export class CheatDetectModel {
     return position;
   }
 
+
   /**
    * measure the relativity position and get detect signal.
+   * @param positions
+   */
+  measureRelativityPositions(positions: FacePosition): {
+    nose: number;
+    leftEar: number;
+    rightEye: number;
+    leftEye: number;
+    rightEar: number
+  } {
+    const widthOfFace = this.calculateTwoPointDistance(positions.leftEar, positions.rightEar);
+
+    return {
+      nose: 0,
+      leftEye: -this.calculateTwoPointDistance(positions.leftEye, positions.nose) / widthOfFace,
+      rightEye: this.calculateTwoPointDistance(positions.rightEye, positions.nose) / widthOfFace,
+      leftEar: -this.calculateTwoPointDistance(positions.leftEar, positions.nose) / widthOfFace,
+      rightEar: this.calculateTwoPointDistance(positions.rightEar, positions.nose) / widthOfFace,
+    };
+  }
+
+  /**
+   * Get detect degree.
    * @param TFJSPositions
    * @param CLMPositions
    * @param drawFlag
    * @param sensitivity
    */
-  measureRelativityPositions(
+  measureCheatDegree(
     TFJSPositions: FacePosition,
     CLMPositions: FacePosition,
     drawFlag: boolean,
@@ -417,13 +450,7 @@ export class CheatDetectModel {
     let headTurnDegree: number;
     let pupilTurnDegree: number;
 
-    relativityPosition = {
-      nose: 0,
-      leftEye: -this.calculateTwoPointDistance(TFJSPositions.leftEye, TFJSPositions.nose) / widthOfFace,
-      rightEye: this.calculateTwoPointDistance(TFJSPositions.rightEye, TFJSPositions.nose) / widthOfFace,
-      leftEar: -this.calculateTwoPointDistance(TFJSPositions.leftEar, TFJSPositions.nose) / widthOfFace,
-      rightEar: this.calculateTwoPointDistance(TFJSPositions.rightEar, TFJSPositions.nose) / widthOfFace,
-    };
+    relativityPosition = this.measureRelativityPositions(TFJSPositions);
 
     if (drawFlag) {
       const leftPupilTurn = this.calculateTwoPointDistance(CLMPositions.leftEye, TFJSPositions.leftEye) / widthOfFace;
@@ -476,14 +503,24 @@ export class CheatDetectModel {
 
   /**
    * Calculate all point's distance
-   * @param positions1
-   * @param positions2
+   * @param TFJSPositions
+   * @param CLMPositions
    */
-  checkAllDistance(positions1: object, positions2: object): object {
-    const result = {};
+  checkAllDistance(TFJSPositions: FacePosition, CLMPositions: FacePosition): object {
+    const widthOfFace = this.calculateTwoPointDistance(TFJSPositions.leftEar, TFJSPositions.rightEar);
 
-    for (const [key, value] of Object.entries(positions1)) {
-      result[key] = this.calculateTwoPointDistance(positions1[key], positions2[key]);
+    const TFJSRelativityPositions = this.measureRelativityPositions(TFJSPositions);
+    const CLMRelativityPositions = {
+      nose: this.calculateTwoPointDistance(CLMPositions.nose, TFJSPositions.nose) / widthOfFace,
+      leftEye: -this.calculateTwoPointDistance(CLMPositions.leftEye, TFJSPositions.nose) / widthOfFace,
+      rightEye: this.calculateTwoPointDistance(CLMPositions.rightEye, TFJSPositions.nose) / widthOfFace,
+      leftEar: -this.calculateTwoPointDistance(CLMPositions.leftEar, TFJSPositions.nose) / widthOfFace,
+      rightEar: this.calculateTwoPointDistance(CLMPositions.rightEar, TFJSPositions.nose) / widthOfFace,
+    };
+
+    const result = {};
+    for (const [key, value] of Object.entries(TFJSPositions)) {
+      result[key] = Math.abs(TFJSRelativityPositions[key] - CLMRelativityPositions[key]);
     }
 
     return result;
@@ -498,7 +535,7 @@ export class CheatDetectModel {
   cheatDetect(CLMPositions: FacePosition, TFJSPositions: FacePosition, drawFlag: boolean): void {
     const sensitivity = 0.8;
     const threshold = 0.8;
-    const measureResult = this.measureRelativityPositions(TFJSPositions, CLMPositions, drawFlag, sensitivity);
+    const measureResult = this.measureCheatDegree(TFJSPositions, CLMPositions, drawFlag, sensitivity);
 
     let possibility = 0;
     let {headTurnDegree, pupilTurnDegree} = measureResult;
@@ -516,8 +553,6 @@ export class CheatDetectModel {
       if (possibility > threshold) {
         this.callBackend(possibility);
       }
-
-      addData(this.chart, new Date().getMilliseconds().toString(), {possibility});
     }
 
   }
